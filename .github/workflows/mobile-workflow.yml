@@ -17,15 +17,6 @@ on:
         required: true
         type: string
         description: "System name for artifacts/display (e.g. BayaniHub-Mobile)"
-      sonar-project-key:
-        required: true
-        type: string
-        description: "SonarCloud project key"
-      sonar-organization:
-        required: false
-        type: string
-        default: "implementsprint"
-        description: "SonarCloud organization"
       node-version:
         required: false
         type: number
@@ -64,6 +55,10 @@ on:
     secrets:
       SONAR_TOKEN:
         required: false
+      SONAR_PROJECT_KEY:
+        required: true
+      SONAR_ORGANIZATION:
+        required: true
 
 jobs:
   # ── Stage 1A: Unit Tests (Jest) ─────────────────────────────────
@@ -108,8 +103,8 @@ jobs:
     with:
       working-directory: ${{ inputs.system-dir }}
       system-name: ${{ inputs.system-name }}
-      sonar-project-key: ${{ inputs.sonar-project-key }}
-      sonar-organization: ${{ inputs.sonar-organization }}
       coverage-artifact-name: ${{ inputs.system-name }}-coverage
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+      SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}

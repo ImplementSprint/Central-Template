@@ -47,8 +47,6 @@ jobs:
     with:
       system-dir: BayaniHub-Web
       system-name: BayaniHub-Web
-      sonar-project-key: Tribe3-Frontend_BayaniHub-Web
-      sonar-organization: implementsprint
     secrets: inherit
 
   damayan-web:
@@ -57,8 +55,6 @@ jobs:
     with:
       system-dir: DAMAYAN-Web
       system-name: DAMAYAN-Web
-      sonar-project-key: Tribe3-Frontend_DAMAYAN-Web
-      sonar-organization: implementsprint
     secrets: inherit
 
   hopecard-web:
@@ -67,8 +63,6 @@ jobs:
     with:
       system-dir: HopeCard-Web
       system-name: HopeCard-Web
-      sonar-project-key: Tribe3-Frontend_HopeCard-Web
-      sonar-organization: implementsprint
     secrets: inherit
 
   # ╔══════════════════════════════════════════════════════════════╗

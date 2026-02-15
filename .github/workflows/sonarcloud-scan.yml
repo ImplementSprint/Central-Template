@@ -16,15 +16,6 @@ on:
         required: true
         type: string
         description: "System name for display"
-      sonar-project-key:
-        required: true
-        type: string
-        description: "SonarCloud project key"
-      sonar-organization:
-        required: false
-        type: string
-        default: "implementsprint"
-        description: "SonarCloud organization"
       sources-path:
         required: false
         type: string
@@ -52,6 +43,10 @@ on:
         description: "Wait for SonarCloud quality gate result"
     secrets:
       SONAR_TOKEN:
+        required: true
+      SONAR_PROJECT_KEY:
+        required: true
+      SONAR_ORGANIZATION:
         required: true
     outputs:
       quality-gate-status:
@@ -85,8 +80,8 @@ jobs:
         with:
           projectBaseDir: ${{ inputs.working-directory }}
           args: >
-            -Dsonar.organization=${{ inputs.sonar-organization }}
-            -Dsonar.projectKey=${{ inputs.sonar-project-key }}
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.sources=${{ inputs.sources-path }}
             -Dsonar.tests=${{ inputs.tests-path }}
             -Dsonar.javascript.lcov.reportPaths=${{ inputs.coverage-report-path }}

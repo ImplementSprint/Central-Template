@@ -20,15 +20,13 @@
 #     with:
 #       system-dir: BayaniHub-Web        # <-- subdirectory
 #       system-name: BayaniHub-Web       # <-- same as dir
-#       sonar-project-key: Tribe3-Frontend_BayaniHub-Web
-#     secrets: inherit
+#     secrets: inherit                    # <-- SONAR_PROJECT_KEY comes from repo secret
 #
 #   damayan-web:
 #     uses: ./.github/workflows/front-end-workflow.yml
 #     with:
 #       system-dir: DAMAYAN-Web
 #       system-name: DAMAYAN-Web
-#       sonar-project-key: Tribe3-Frontend_DAMAYAN-Web
 #     secrets: inherit
 
 # ╔══════════════════════════════════════════════════════════════════╗
@@ -69,9 +67,7 @@ jobs:
     with:
       system-dir: "."                                   # <-- root directory
       system-name: PadyakPH-Web                         # <-- project name for artifacts
-      sonar-project-key: Tribe5-Frontend_PadyakPH-Web
-      sonar-organization: implementsprint
-    secrets: inherit
+    secrets: inherit                                      # <-- SONAR_TOKEN, SONAR_PROJECT_KEY, SONAR_ORGANIZATION from repo secrets
 
   # Deploy to staging
   deploy-staging:
@@ -130,10 +126,9 @@ jobs:
 # ║      with:                                                     ║
 # ║        system-dir: "."                                         ║
 # ║        system-name: BayaniHub-API                              ║
-# ║        sonar-project-key: Tribe3-Backend_BayaniHub-API         ║
 # ║        enable-docker-build: true                               ║
 # ║        docker-image-name: bayanihub-api                        ║
-# ║      secrets: inherit                                          ║
+# ║      secrets: inherit  # SONAR_PROJECT_KEY from repo secret    ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 
@@ -154,8 +149,7 @@ jobs:
 # ║      with:                                                     ║
 # ║        system-dir: "."                                         ║
 # ║        system-name: BayaniHub-Mobile                           ║
-# ║        sonar-project-key: Tribe3-Mobile_BayaniHub              ║
 # ║        build-android: true                                     ║
 # ║        build-variant: assembleRelease                          ║
-# ║      secrets: inherit                                          ║
+# ║      secrets: inherit  # SONAR_PROJECT_KEY from repo secret    ║
 # ╚══════════════════════════════════════════════════════════════════╝
