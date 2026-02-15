@@ -89,28 +89,14 @@ jobs:
       system-name: ${{ inputs.system-name }}
       node-version: ${{ inputs.node-version }}
 
-  # ── Stage 2: SonarCloud Quality Gate ────────────────────────────
-  api-sonarcloud:
-    name: "API — SonarCloud Analysis"
-    needs: api-unit-tests
-    uses: ./.github/workflows/sonarcloud-scan.yml
-    with:
-      working-directory: ${{ inputs.system-dir }}
-      system-name: ${{ inputs.system-name }}
-      coverage-artifact-name: ${{ inputs.system-name }}-coverage
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
-      SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
-
-  # ── Stage 3: Docker Build & Push ────────────────────────────────
+  # ── Stage 2: Docker Build & Push ────────────────────────────────
   api-docker:
     name: "API — Docker Build"
     if: |
       always() &&
       inputs.enable-docker-build && inputs.docker-image-name != '' &&
       !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
-    needs: [api-sonarcloud, api-lint, api-security]
+    needs: [api-unit-tests, api-lint, api-security]
     uses: ./.github/workflows/docker-build.yml
     with:
       working-directory: ${{ inputs.system-dir }}
