@@ -1,0 +1,116 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  REUSABLE: Vercel Deployment                                   ║
+# ║  Handles preview (PR) and production (main) deploys           ║
+# ╚══════════════════════════════════════════════════════════════════╝
+name: "Reusable: Vercel Deploy"
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: true
+        type: string
+        description: "Project directory"
+      environment:
+        required: false
+        type: string
+        default: "preview"
+        description: "Deployment environment (preview|staging|production)"
+      artifact-name:
+        required: false
+        type: string
+        default: ""
+        description: "Build artifact to download (leave empty to build in-place)"
+    secrets:
+      VERCEL_TOKEN:
+        required: true
+      VERCEL_ORG_ID:
+        required: true
+      VERCEL_PROJECT_ID:
+        required: true
+    outputs:
+      deployment-url:
+        description: "Vercel deployment URL"
+        value: ${{ jobs.vercel-deploy.outputs.url }}
+      deployment-id:
+        description: "Vercel deployment ID"
+        value: ${{ jobs.vercel-deploy.outputs.id }}
+
+jobs:
+  vercel-deploy:
+    name: "Deploy to Vercel (${{ inputs.environment }})"
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.deploy.outputs.url }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+      id: ${{ steps.deploy.outputs.id }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Build Artifact
+        if: ${{ inputs.artifact-name != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./${{ inputs.working-directory }}/dist
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel Environment
+        run: |
+          vercel pull --yes --environment=${{ inputs.environment }} \
+            --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: ./${{ inputs.working-directory }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build with Vercel
+        if: ${{ inputs.artifact-name == '' }}
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            vercel build --token=${{ secrets.VERCEL_TOKEN }}
+          fi
+        working-directory: ./${{ inputs.working-directory }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel
+        id: deploy
+        run: |
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          else
+            URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          fi
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "🚀 Deployed to: $URL"
+        working-directory: ./${{ inputs.working-directory }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Comment Deployment URL on PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.url }}';
+            const body = `## 🚀 Vercel Preview Deployment\n\n` +
+              `**Project:** \`${{ inputs.working-directory }}\`\n` +
+              `**Environment:** \`${{ inputs.environment }}\`\n` +
+              `**URL:** ${url}\n` +
+              `**Commit:** \`${{ github.sha }}\``;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });

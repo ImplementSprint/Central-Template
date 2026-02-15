@@ -1,9 +1,8 @@
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║  REUSABLE: Governance Checks                                   ║
-# ║  Test execution + coverage gate + artifact upload              ║
-# ║  Works for any Node.js project (frontend/backend/mobile)      ║
+# ║  REUSABLE: Frontend Unit Tests (Vitest)                        ║
+# ║  Called by any tribe's frontend pipeline                       ║
 # ╚══════════════════════════════════════════════════════════════════╝
-name: "Reusable: Governance Checks"
+name: "Reusable: Frontend Unit Tests"
 
 on:
   workflow_call:
@@ -12,36 +11,46 @@ on:
         required: false
         type: string
         default: "."
-        description: "Working directory for the checks"
+        description: "Project directory (e.g. BayaniHub-Web, or '.' for root)"
       system-name:
         required: true
         type: string
-        description: "System name for artifacts/display"
+        description: "System name for artifacts/display (e.g. BayaniHub-Web)"
       node-version:
         required: false
         type: number
         default: 20
         description: "Node.js version"
       test-command:
-        required: true
+        required: false
         type: string
-        description: "Test command to run"
+        default: "npx vitest run --coverage --reporter=verbose"
+        description: "Test command to execute"
       coverage-threshold:
         required: false
         type: number
         default: 80
-        description: "Minimum code coverage percentage"
+        description: "Minimum coverage percentage"
+      upload-artifact:
+        required: false
+        type: boolean
+        default: true
+        description: "Upload coverage artifact"
     outputs:
       test-result:
-        description: "Test result"
-        value: ${{ jobs.governance.outputs.result }}
+        description: "Test pass/fail result"
+        value: ${{ jobs.frontend-unit-tests.outputs.result }}
+      coverage-percent:
+        description: "Code coverage percentage"
+        value: ${{ jobs.frontend-unit-tests.outputs.coverage }}
 
 jobs:
-  governance:
-    name: "Governance Checks"
+  frontend-unit-tests:
+    name: "Vitest Unit Tests"
     runs-on: ubuntu-latest
     outputs:
-      result: ${{ steps.tests.outcome }}
+      result: ${{ steps.test-run.outcome }}
+      coverage: ${{ steps.coverage-check.outputs.coverage }}
     defaults:
       run:
         working-directory: ./${{ inputs.working-directory }}
@@ -59,18 +68,22 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Run Tests with Coverage
-        id: tests
+      - name: Run Vitest with Coverage
+        id: test-run
         run: ${{ inputs.test-command }}
 
-      - name: Check Coverage Threshold
+      - name: Parse Coverage Report
+        id: coverage-check
+        if: always()
         run: |
           if [ -f "coverage/coverage-summary.json" ]; then
             COVERAGE=$(node -e "
               const data = require('./coverage/coverage-summary.json');
               console.log(data.total.lines.pct);
             ")
-            echo "📊 Coverage: ${COVERAGE}%"
+            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+            echo "📊 Line Coverage: ${COVERAGE}%"
+
             THRESHOLD=${{ inputs.coverage-threshold }}
             if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
               echo "❌ Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
@@ -78,18 +91,26 @@ jobs:
             else
               echo "✅ Coverage ${COVERAGE}% meets threshold ${THRESHOLD}%"
             fi
-          elif [ -f "coverage/lcov.info" ]; then
-            echo "⚠️ Only lcov.info found — threshold check needs coverage-summary.json"
-            echo "✅ Skipping numeric threshold, coverage artifact uploaded"
           else
-            echo "⚠️ No coverage report found — skipping threshold check"
+            echo "coverage=unknown" >> $GITHUB_OUTPUT
+            echo "⚠️ Coverage summary not found — skipping threshold check"
           fi
 
-      - name: Upload Coverage Reports
+      - name: Upload Coverage Artifact
+        if: ${{ inputs.upload-artifact && always() }}
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: ${{ inputs.system-name }}-coverage
           path: ${{ inputs.working-directory }}/coverage
           retention-days: 14
-          retention-days: 14
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.system-name }}-test-results
+          path: |
+            ${{ inputs.working-directory }}/coverage/coverage-summary.json
+            ${{ inputs.working-directory }}/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

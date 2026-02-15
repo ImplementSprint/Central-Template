@@ -1,26 +1,57 @@
-name: Deploy to Staging
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  REUSABLE: Deploy to Staging                                   ║
+# ║  Supports web (Vercel), API (container), and mobile (APK)     ║
+# ╚══════════════════════════════════════════════════════════════════╝
+name: "Reusable: Deploy to Staging"
 
 on:
   workflow_call:
     inputs:
       system-dir:
+        required: false
+        type: string
+        default: "."
+        description: "System directory name"
+      system-name:
         required: true
         type: string
-        description: 'System directory name (e.g. CentralPerk-Web)'
+        description: "System name for artifacts/display"
       app-type:
         required: true
         type: string
-        description: 'Application type (web or mobile)'
+        description: "Application type (web|api|mobile)"
       artifact-name:
         required: true
         type: string
-        description: 'Artifact name to download'
+        description: "Artifact name to download"
+      staging-url:
+        required: false
+        type: string
+        default: ""
+        description: "Expected staging URL for health check"
+      enable-health-check:
+        required: false
+        type: boolean
+        default: true
+        description: "Run post-deploy health check"
+    outputs:
+      deployment-url:
+        description: "Staging deployment URL"
+        value: ${{ jobs.deploy-staging.outputs.url }}
+      deployment-status:
+        description: "Deployment status"
+        value: ${{ jobs.deploy-staging.outputs.status }}
 
 jobs:
   deploy-staging:
-    name: Deploy to Staging
+    name: "Deploy to Staging"
     runs-on: ubuntu-latest
-    environment: staging
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+      status: ${{ steps.deploy.outputs.status }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -32,11 +63,79 @@ jobs:
           path: ./build
 
       - name: Deploy to Staging
+        id: deploy
         run: |
-          echo "🚀 Deploying ${{ inputs.system-dir }} (${{ inputs.app-type }}) to staging environment..."
-          # Add your deployment commands here
-          # For example, if using Firebase:
-          # firebase deploy --only hosting --project staging-project
-          # Or if using AWS S3:
-          # aws s3 sync ./build s3://staging-bucket --delete
-          echo "✅ Deployment completed successfully!"
+          echo "╔══════════════════════════════════════════════╗"
+          echo "║   STAGING DEPLOYMENT                         ║"
+          echo "╠══════════════════════════════════════════════╣"
+          echo "║ System:    ${{ inputs.system-name }}"
+          echo "║ Type:      ${{ inputs.app-type }}"
+          echo "║ Branch:    ${{ github.ref_name }}"
+          echo "║ Commit:    ${{ github.sha }}"
+          echo "║ Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "╚══════════════════════════════════════════════╝"
+
+          # Route deployment by app type
+          case "${{ inputs.app-type }}" in
+            web)
+              echo "🌐 Deploying web app to staging..."
+              # Vercel / Firebase / S3 deployment commands here
+              echo "url=https://${{ inputs.system-name }}-staging.vercel.app" >> $GITHUB_OUTPUT
+              ;;
+            api)
+              echo "⚙️ Deploying backend API to staging..."
+              # Docker / cloud provider deployment commands here
+              echo "url=https://${{ inputs.system-name }}-staging.api.example.com" >> $GITHUB_OUTPUT
+              ;;
+            mobile)
+              echo "📱 Publishing mobile APK to staging..."
+              # Upload APK to GitHub Releases / internal distribution
+              echo "url=https://github.com/${{ github.repository }}/releases" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ Staging deployment completed"
+
+      - name: Post-Deploy Health Check
+        if: ${{ inputs.enable-health-check && inputs.staging-url != '' }}
+        run: |
+          echo "🏥 Running health check on ${{ inputs.staging-url }}..."
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ inputs.staging-url }}/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "⏳ Attempt $i: Status $STATUS — retrying in 10s..."
+            sleep 10
+          done
+          echo "❌ Health check failed after 5 attempts"
+          exit 1
+
+      - name: Create Deployment Log
+        if: always()
+        run: |
+          cat << EOF > deployment-log.json
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "system": "${{ inputs.system-name }}",
+            "app_type": "${{ inputs.app-type }}",
+            "environment": "staging",
+            "commit_sha": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "deployed_by": "${{ github.actor }}",
+            "status": "${{ steps.deploy.outputs.status }}",
+            "url": "${{ steps.deploy.outputs.url }}",
+            "run_id": "${{ github.run_id }}"
+          }
+          EOF
+          cat deployment-log.json
+
+      - name: Upload Deployment Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.system-name }}-staging-deployment-log
+          path: deployment-log.json
+          retention-days: 90

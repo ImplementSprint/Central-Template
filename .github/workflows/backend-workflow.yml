@@ -1,9 +1,9 @@
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║  ORCHESTRATOR: Frontend Web CI/CD Pipeline                     ║
-# ║  Composes reusable workflows: test → lint → sonar → build     ║
+# ║  ORCHESTRATOR: Backend CI/CD Pipeline                          ║
+# ║  Composes reusable workflows: test → lint → sonar → docker    ║
 # ║  Any tribe can call this with their project directory          ║
 # ╚══════════════════════════════════════════════════════════════════╝
-name: "Frontend Web CI/CD Pipeline"
+name: "Backend CI/CD Pipeline"
 
 on:
   workflow_call:
@@ -12,11 +12,11 @@ on:
         required: false
         type: string
         default: "."
-        description: "Project directory (e.g. BayaniHub-Web, or '.' for root)"
+        description: "Project directory (e.g. BayaniHub-API, or '.' for root)"
       system-name:
         required: true
         type: string
-        description: "System name for artifacts/display (e.g. BayaniHub-Web)"
+        description: "System name for artifacts/display (e.g. BayaniHub-API)"
       sonar-project-key:
         required: true
         type: string
@@ -35,7 +35,7 @@ on:
         required: false
         type: number
         default: 80
-        description: "Minimum code coverage percentage required"
+        description: "Minimum code coverage percentage"
       enable-lint:
         required: false
         type: boolean
@@ -46,25 +46,41 @@ on:
         type: boolean
         default: true
         description: "Run security scanning"
+      enable-docker-build:
+        required: false
+        type: boolean
+        default: false
+        description: "Build and push Docker image"
+      docker-image-name:
+        required: false
+        type: string
+        default: ""
+        description: "Docker image name for GHCR"
+      integration-test-command:
+        required: false
+        type: string
+        default: ""
+        description: "Integration test command (leave empty to skip)"
     secrets:
       SONAR_TOKEN:
         required: false
 
 jobs:
-  # ── Stage 1A: Unit Tests (Vitest) ───────────────────────────────
-  web-unit-tests:
-    name: "Web — Vitest Unit Tests"
-    uses: ./.github/workflows/frontend-tests.yml
+  # ── Stage 1A: Unit Tests (Jest) ─────────────────────────────────
+  api-unit-tests:
+    name: "API — Jest Unit Tests"
+    uses: ./.github/workflows/backend-tests.yml
     with:
       working-directory: ${{ inputs.system-dir }}
       system-name: ${{ inputs.system-name }}
       node-version: ${{ inputs.node-version }}
-      test-command: "npx vitest run --coverage --reporter=verbose"
+      test-command: "npx jest --coverage --verbose --ci --forceExit"
+      integration-test-command: ${{ inputs.integration-test-command }}
       coverage-threshold: ${{ inputs.coverage-threshold }}
 
   # ── Stage 1B: Lint (parallel with tests) ────────────────────────
-  web-lint:
-    name: "Web — Lint Check"
+  api-lint:
+    name: "API — Lint Check"
     if: ${{ inputs.enable-lint }}
     uses: ./.github/workflows/lint-check.yml
     with:
@@ -73,8 +89,8 @@ jobs:
       node-version: ${{ inputs.node-version }}
 
   # ── Stage 1C: Security Scan (parallel with tests) ──────────────
-  web-security:
-    name: "Web — Security Scan"
+  api-security:
+    name: "API — Security Scan"
     if: ${{ inputs.enable-security-scan }}
     uses: ./.github/workflows/security-scan.yml
     with:
@@ -83,9 +99,9 @@ jobs:
       node-version: ${{ inputs.node-version }}
 
   # ── Stage 2: SonarCloud Quality Gate ────────────────────────────
-  web-sonarcloud:
-    name: "Web — SonarCloud Analysis"
-    needs: web-unit-tests
+  api-sonarcloud:
+    name: "API — SonarCloud Analysis"
+    needs: api-unit-tests
     uses: ./.github/workflows/sonarcloud-scan.yml
     with:
       working-directory: ${{ inputs.system-dir }}
@@ -96,40 +112,14 @@ jobs:
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  # ── Stage 3: Build Web Application ─────────────────────────────
-  web-build:
-    name: "Web — Build"
-    needs: [web-sonarcloud]
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./${{ inputs.system-dir }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js ${{ inputs.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: "npm"
-          cache-dependency-path: ${{ inputs.system-dir }}/package-lock.json
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Fix Vite Entry Point
-        run: |
-          if [ -f "public/index.html" ] && [ ! -f "index.html" ]; then
-            mv public/index.html .
-          fi
-
-      - name: Build Application
-        run: npm run build
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.system-name }}-web-build
-          path: ${{ inputs.system-dir }}/dist
-          retention-days: 14
+  # ── Stage 3: Docker Build & Push ────────────────────────────────
+  api-docker:
+    name: "API — Docker Build"
+    if: ${{ inputs.enable-docker-build && inputs.docker-image-name != '' }}
+    needs: [api-sonarcloud]
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      working-directory: ${{ inputs.system-dir }}
+      image-name: ${{ inputs.docker-image-name }}
+      push-image: true
+      scan-vulnerabilities: true

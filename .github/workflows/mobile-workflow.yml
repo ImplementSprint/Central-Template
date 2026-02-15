@@ -1,9 +1,9 @@
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║  ORCHESTRATOR: Frontend Web CI/CD Pipeline                     ║
+# ║  ORCHESTRATOR: Mobile CI/CD Pipeline                           ║
 # ║  Composes reusable workflows: test → lint → sonar → build     ║
 # ║  Any tribe can call this with their project directory          ║
 # ╚══════════════════════════════════════════════════════════════════╝
-name: "Frontend Web CI/CD Pipeline"
+name: "Mobile CI/CD Pipeline"
 
 on:
   workflow_call:
@@ -12,11 +12,11 @@ on:
         required: false
         type: string
         default: "."
-        description: "Project directory (e.g. BayaniHub-Web, or '.' for root)"
+        description: "Project directory (e.g. BayaniHub-Mobile, or '.' for root)"
       system-name:
         required: true
         type: string
-        description: "System name for artifacts/display (e.g. BayaniHub-Web)"
+        description: "System name for artifacts/display (e.g. BayaniHub-Mobile)"
       sonar-project-key:
         required: true
         type: string
@@ -31,11 +31,16 @@ on:
         type: number
         default: 20
         description: "Node.js version"
+      java-version:
+        required: false
+        type: string
+        default: "17"
+        description: "JDK version for Android builds"
       coverage-threshold:
         required: false
         type: number
         default: 80
-        description: "Minimum code coverage percentage required"
+        description: "Minimum code coverage percentage"
       enable-lint:
         required: false
         type: boolean
@@ -46,25 +51,38 @@ on:
         type: boolean
         default: true
         description: "Run security scanning"
+      build-android:
+        required: false
+        type: boolean
+        default: false
+        description: "Build Android APK"
+      build-variant:
+        required: false
+        type: string
+        default: "assembleRelease"
+        description: "Gradle build variant"
     secrets:
       SONAR_TOKEN:
         required: false
 
 jobs:
-  # ── Stage 1A: Unit Tests (Vitest) ───────────────────────────────
-  web-unit-tests:
-    name: "Web — Vitest Unit Tests"
-    uses: ./.github/workflows/frontend-tests.yml
+  # ── Stage 1A: Unit Tests (Jest) ─────────────────────────────────
+  mobile-unit-tests:
+    name: "Mobile — Jest Unit Tests"
+    uses: ./.github/workflows/mobile-tests.yml
     with:
       working-directory: ${{ inputs.system-dir }}
       system-name: ${{ inputs.system-name }}
       node-version: ${{ inputs.node-version }}
-      test-command: "npx vitest run --coverage --reporter=verbose"
+      java-version: ${{ inputs.java-version }}
+      test-command: "npx jest --coverage --verbose --ci --forceExit"
       coverage-threshold: ${{ inputs.coverage-threshold }}
+      build-android: ${{ inputs.build-android }}
+      build-variant: ${{ inputs.build-variant }}
 
   # ── Stage 1B: Lint (parallel with tests) ────────────────────────
-  web-lint:
-    name: "Web — Lint Check"
+  mobile-lint:
+    name: "Mobile — Lint Check"
     if: ${{ inputs.enable-lint }}
     uses: ./.github/workflows/lint-check.yml
     with:
@@ -73,8 +91,8 @@ jobs:
       node-version: ${{ inputs.node-version }}
 
   # ── Stage 1C: Security Scan (parallel with tests) ──────────────
-  web-security:
-    name: "Web — Security Scan"
+  mobile-security:
+    name: "Mobile — Security Scan"
     if: ${{ inputs.enable-security-scan }}
     uses: ./.github/workflows/security-scan.yml
     with:
@@ -83,9 +101,9 @@ jobs:
       node-version: ${{ inputs.node-version }}
 
   # ── Stage 2: SonarCloud Quality Gate ────────────────────────────
-  web-sonarcloud:
-    name: "Web — SonarCloud Analysis"
-    needs: web-unit-tests
+  mobile-sonarcloud:
+    name: "Mobile — SonarCloud Analysis"
+    needs: mobile-unit-tests
     uses: ./.github/workflows/sonarcloud-scan.yml
     with:
       working-directory: ${{ inputs.system-dir }}
@@ -95,41 +113,3 @@ jobs:
       coverage-artifact-name: ${{ inputs.system-name }}-coverage
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-  # ── Stage 3: Build Web Application ─────────────────────────────
-  web-build:
-    name: "Web — Build"
-    needs: [web-sonarcloud]
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./${{ inputs.system-dir }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js ${{ inputs.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: "npm"
-          cache-dependency-path: ${{ inputs.system-dir }}/package-lock.json
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Fix Vite Entry Point
-        run: |
-          if [ -f "public/index.html" ] && [ ! -f "index.html" ]; then
-            mv public/index.html .
-          fi
-
-      - name: Build Application
-        run: npm run build
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.system-name }}-web-build
-          path: ${{ inputs.system-dir }}/dist
-          retention-days: 14

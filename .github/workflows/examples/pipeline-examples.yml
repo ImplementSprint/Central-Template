@@ -1,0 +1,161 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  EXAMPLE: Multi-System Frontend Repo (like Tribe3)             ║
+# ║                                                                ║
+# ║  Repo structure:                                               ║
+# ║  Tribe3-Frontend/                                              ║
+# ║  ├── BayaniHub-Web/   (package.json, src/, tests/)            ║
+# ║  ├── DAMAYAN-Web/     (package.json, src/, tests/)            ║
+# ║  └── HopeCard-Web/    (package.json, src/, tests/)            ║
+# ║                                                                ║
+# ║  system-dir = subdirectory name                                ║
+# ║  system-name = same as system-dir                              ║
+# ╚══════════════════════════════════════════════════════════════════╝
+#
+# This is exactly what master-pipeline.yml does for Tribe3.
+# See master-pipeline.yml for the live version.
+#
+# jobs:
+#   bayanihub-web:
+#     uses: ./.github/workflows/front-end-workflow.yml
+#     with:
+#       system-dir: BayaniHub-Web        # <-- subdirectory
+#       system-name: BayaniHub-Web       # <-- same as dir
+#       sonar-project-key: Tribe3-Frontend_BayaniHub-Web
+#     secrets: inherit
+#
+#   damayan-web:
+#     uses: ./.github/workflows/front-end-workflow.yml
+#     with:
+#       system-dir: DAMAYAN-Web
+#       system-name: DAMAYAN-Web
+#       sonar-project-key: Tribe3-Frontend_DAMAYAN-Web
+#     secrets: inherit
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  EXAMPLE: Single-System Frontend Repo (e.g. Tribe5)           ║
+# ║                                                                ║
+# ║  Repo structure:                                               ║
+# ║  Tribe5-Frontend/                                              ║
+# ║  ├── package.json     (at root)                               ║
+# ║  ├── src/                                                      ║
+# ║  ├── tests/                                                    ║
+# ║  └── vitest.config.ts                                         ║
+# ║                                                                ║
+# ║  system-dir = "."  (code is at root)                           ║
+# ║  system-name = "PadyakPH-Web"  (the actual project name)      ║
+# ╚══════════════════════════════════════════════════════════════════╝
+name: "Single-System Frontend Pipeline Example"
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Only ONE system — code lives at repo root
+  frontend:
+    name: "PadyakPH-Web Pipeline"
+    uses: ./.github/workflows/front-end-workflow.yml
+    with:
+      system-dir: "."                                   # <-- root directory
+      system-name: PadyakPH-Web                         # <-- project name for artifacts
+      sonar-project-key: Tribe5-Frontend_PadyakPH-Web
+      sonar-organization: implementsprint
+    secrets: inherit
+
+  # Deploy to staging
+  deploy-staging:
+    name: "Staging — PadyakPH-Web"
+    needs: [frontend]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/deploy-staging.yml
+    with:
+      system-dir: "."
+      system-name: PadyakPH-Web
+      app-type: web
+      artifact-name: PadyakPH-Web-web-build             # <-- uses system-name, not "."
+    secrets: inherit
+
+  # Production gate
+  production-gate:
+    name: "Production Gate"
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    uses: ./.github/workflows/production-gate.yml
+    with:
+      system-dir: "."
+      app-type: web
+    secrets: inherit
+
+  # Pipeline summary
+  pipeline-summary:
+    name: "Pipeline Summary"
+    needs: [frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Results
+        run: |
+          echo "╔══════════════════════════════════════════════╗"
+          echo "║  PIPELINE SUMMARY                            ║"
+          echo "╠══════════════════════════════════════════════╣"
+          echo "║ PadyakPH-Web: ${{ needs.frontend.result }}"
+          echo "╚══════════════════════════════════════════════╝"
+
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  EXAMPLE: Backend Repo (any tribe)                             ║
+# ║                                                                ║
+# ║  Tribe3-Backend/                                               ║
+# ║  ├── package.json     (at root)                               ║
+# ║  ├── src/                                                      ║
+# ║  ├── tests/                                                    ║
+# ║  └── Dockerfile                                                ║
+# ║                                                                ║
+# ║  Usage in that repo's master-pipeline.yml:                     ║
+# ║                                                                ║
+# ║  jobs:                                                         ║
+# ║    backend:                                                    ║
+# ║      uses: ./.github/workflows/backend-workflow.yml            ║
+# ║      with:                                                     ║
+# ║        system-dir: "."                                         ║
+# ║        system-name: BayaniHub-API                              ║
+# ║        sonar-project-key: Tribe3-Backend_BayaniHub-API         ║
+# ║        enable-docker-build: true                               ║
+# ║        docker-image-name: bayanihub-api                        ║
+# ║      secrets: inherit                                          ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  EXAMPLE: Mobile Repo (any tribe)                              ║
+# ║                                                                ║
+# ║  Tribe3-Mobile/                                                ║
+# ║  ├── package.json     (at root)                               ║
+# ║  ├── src/                                                      ║
+# ║  ├── android/                                                  ║
+# ║  └── ios/                                                      ║
+# ║                                                                ║
+# ║  Usage in that repo's master-pipeline.yml:                     ║
+# ║                                                                ║
+# ║  jobs:                                                         ║
+# ║    mobile:                                                     ║
+# ║      uses: ./.github/workflows/mobile-workflow.yml             ║
+# ║      with:                                                     ║
+# ║        system-dir: "."                                         ║
+# ║        system-name: BayaniHub-Mobile                           ║
+# ║        sonar-project-key: Tribe3-Mobile_BayaniHub              ║
+# ║        build-android: true                                     ║
+# ║        build-variant: assembleRelease                          ║
+# ║      secrets: inherit                                          ║
+# ╚══════════════════════════════════════════════════════════════════╝
