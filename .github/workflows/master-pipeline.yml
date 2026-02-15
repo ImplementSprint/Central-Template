@@ -11,36 +11,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 🔄 BUILD STAGE: BayaniHub-Web
   bayanihubweb:
     name: Build BayaniHub-Web
     uses: ./.github/workflows/front-end-workflow.yml
     with:
       system-dir: BayaniHub-Web
-      sonar-project-key: Tribe3-Frontend_Web_BayaniHub-Web
-    secrets: inherit
+      sonar-project-key: Tribe3_Web_BayaniHub-Web
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  # 🔄 BUILD STAGE: DAMAYAN-Web
   damayanweb:
     name: Build DAMAYAN-Web
     needs: bayanihubweb
     uses: ./.github/workflows/front-end-workflow.yml
     with:
       system-dir: DAMAYAN-Web
-      sonar-project-key: Tribe3-Frontend_Web_DAMAYAN-Web
-    secrets: inherit
+      sonar-project-key: Tribe3_Web_DAMAYAN-Web
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  # 🔄 BUILD STAGE: HopeCard-Web
   hopecardweb:
     name: Build HopeCard-Web
     needs: damayanweb
     uses: ./.github/workflows/front-end-workflow.yml
     with:
       system-dir: HopeCard-Web
-      sonar-project-key: Tribe3-Frontend_Web_HopeCard-Web
-    secrets: inherit
+      sonar-project-key: Tribe3_Web_HopeCard-Web
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  # 🚀 DEPLOY STAGE: BayaniHub-Web
   deploy-staging-bayanihubweb:
     name: Deploy Staging — BayaniHub-Web
     needs: bayanihubweb
@@ -52,7 +51,6 @@ jobs:
       artifact-name: BayaniHub-Web-web-build
     secrets: inherit
 
-  # 🚀 DEPLOY STAGE: DAMAYAN-Web
   deploy-staging-damayanweb:
     name: Deploy Staging — DAMAYAN-Web
     needs: damayanweb
@@ -64,7 +62,6 @@ jobs:
       artifact-name: DAMAYAN-Web-web-build
     secrets: inherit
 
-  # 🚀 DEPLOY STAGE: HopeCard-Web
   deploy-staging-hopecardweb:
     name: Deploy Staging — HopeCard-Web
     needs: hopecardweb
