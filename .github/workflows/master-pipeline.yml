@@ -11,44 +11,68 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 🟢 STAGE 1: pakiPARK-Web
-  pakipark-web:
-    name: pakiPARK-Web Pipeline
+  # 🔄 BUILD STAGE: BayaniHub-Web
+  bayanihubweb:
+    name: Build BayaniHub-Web
     uses: ./.github/workflows/front-end-workflow.yml
     with:
-      system-dir: pakiPARK-Web
-      sonar-project-key: Tribe3_Frontend_pakiPARK-Web
+      system-dir: BayaniHub-Web
+      sonar-project-key: Tribe3-Frontend_Web_BayaniHub-Web
     secrets: inherit
 
-  # 🟢 STAGE 2: pakiSHIP-Web
-  pakiship-web:
-    name: pakiSHIP-Web Pipeline
-    needs: pakipark-web
+  # 🔄 BUILD STAGE: DAMAYAN-Web
+  damayanweb:
+    name: Build DAMAYAN-Web
+    needs: bayanihubweb
     uses: ./.github/workflows/front-end-workflow.yml
     with:
-      system-dir: pakiSHIP-Web
-      sonar-project-key: Tribe3_Frontend_pakiSHIP-Web
+      system-dir: DAMAYAN-Web
+      sonar-project-key: Tribe3-Frontend_Web_DAMAYAN-Web
     secrets: inherit
 
-  # 🚀 STAGE 3: Deploy Staging (Web)
-  deploy-staging-pakipark-web:
-    name: Staging — pakiPARK-Web
-    needs: [pakipark-web, pakiship-web]
+  # 🔄 BUILD STAGE: HopeCard-Web
+  hopecardweb:
+    name: Build HopeCard-Web
+    needs: damayanweb
+    uses: ./.github/workflows/front-end-workflow.yml
+    with:
+      system-dir: HopeCard-Web
+      sonar-project-key: Tribe3-Frontend_Web_HopeCard-Web
+    secrets: inherit
+
+  # 🚀 DEPLOY STAGE: BayaniHub-Web
+  deploy-staging-bayanihubweb:
+    name: Deploy Staging — BayaniHub-Web
+    needs: bayanihubweb
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     uses: ./.github/workflows/deploy-staging.yml
     with:
-      system-dir: pakiPARK-Web
+      system-dir: BayaniHub-Web
       app-type: web
-      artifact-name: pakiPARK-Web-web-build
+      artifact-name: BayaniHub-Web-web-build
     secrets: inherit
 
-  deploy-staging-pakiship-web:
-    name: Staging — pakiSHIP-Web
-    needs: deploy-staging-pakipark-web
-    if: ${{ !cancelled() && !failure() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') }}
+  # 🚀 DEPLOY STAGE: DAMAYAN-Web
+  deploy-staging-damayanweb:
+    name: Deploy Staging — DAMAYAN-Web
+    needs: damayanweb
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     uses: ./.github/workflows/deploy-staging.yml
     with:
-      system-dir: pakiSHIP-Web
+      system-dir: DAMAYAN-Web
       app-type: web
-      artifact-name: pakiSHIP-Web-web-build
+      artifact-name: DAMAYAN-Web-web-build
     secrets: inherit
+
+  # 🚀 DEPLOY STAGE: HopeCard-Web
+  deploy-staging-hopecardweb:
+    name: Deploy Staging — HopeCard-Web
+    needs: hopecardweb
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/deploy-staging.yml
+    with:
+      system-dir: HopeCard-Web
+      app-type: web
+      artifact-name: HopeCard-Web-web-build
+    secrets: inherit
+
