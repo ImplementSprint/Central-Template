@@ -2,17 +2,21 @@
 # ║  MASTER PIPELINE ORCHESTRATOR                                  ║
 # ║  Coordinates all tribe system pipelines in parallel            ║
 # ║                                                                ║
-# ║  Branch Strategy:                                              ║
+# ║  Branch Strategy (feature-based):                              ║
+# ║  ┌──────────────┐                                              ║
+# ║  │  feature/*    │  Developer works on feature branch          ║
+# ║  └────┬─────────┘                                              ║
+# ║       ▼  PR                                                    ║
 # ║  ┌──────────┐                                                  ║
 # ║  │  test     │  CI only (tests + lint + security + sonar)      ║
 # ║  └────┬─────┘                                                  ║
-# ║       ▼                                                        ║
+# ║       ▼  PR                                                    ║
 # ║  ┌──────────┐                                                  ║
 # ║  │  uat      │  CI + Deploy to UAT environment                 ║
 # ║  └────┬─────┘                                                  ║
-# ║       ▼                                                        ║
+# ║       ▼  PR                                                    ║
 # ║  ┌──────────┐                                                  ║
-# ║  │  prod     │  CI + Deploy to Prod + Production Gate          ║
+# ║  │  main     │  CI + Production Gate + Deploy to Prod          ║
 # ║  └──────────┘                                                  ║
 # ║                                                                ║
 # ║  All 3 systems run in PARALLEL at every stage.                 ║
@@ -21,9 +25,9 @@ name: "Master Pipeline Orchestrator"
 
 on:
   push:
-    branches: [test, uat, prod]
+    branches: [test, uat, main]
   pull_request:
-    branches: [test, uat, prod]
+    branches: [test, uat, main]
 
 permissions:
   contents: read
@@ -36,32 +40,130 @@ concurrency:
 
 jobs:
   # ╔══════════════════════════════════════════════════════════════╗
+  # ║  STAGE 0 — Detect Changes (skip unchanged sub-projects)    ║
+  # ╚══════════════════════════════════════════════════════════════╝
+  detect-changes:
+    name: "Detect Changed Projects"
+    runs-on: ubuntu-latest
+    outputs:
+      bayanihub-web: ${{ steps.filter.outputs.bayanihub-web }}
+      damayan-web: ${{ steps.filter.outputs.damayan-web }}
+      hopecard-web: ${{ steps.filter.outputs.hopecard-web }}
+      shared: ${{ steps.filter.outputs.shared }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect file changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            bayanihub-web:
+              - 'BayaniHub-Web/**'
+            damayan-web:
+              - 'DAMAYAN-Web/**'
+            hopecard-web:
+              - 'HopeCard-Web/**'
+            shared:
+              - '.github/**'
+              - 'package.json'
+              - 'sonar-project.properties'
+
+  # ╔══════════════════════════════════════════════════════════════╗
   # ║  STAGE 1 — All Frontend Pipelines (PARALLEL)               ║
   # ║  Tests + Lint + Security + SonarCloud + Build               ║
+  # ║  Each only runs if its files changed (or shared files)      ║
   # ╚══════════════════════════════════════════════════════════════╝
   bayanihub-web:
     name: "BayaniHub-Web Pipeline"
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.bayanihub-web == 'true' || needs.detect-changes.outputs.shared == 'true'
     uses: ./.github/workflows/front-end-workflow.yml
     with:
       system-dir: BayaniHub-Web
       system-name: BayaniHub-Web
+      enable-security-scan: false  # TODO: re-enable once GITLEAKS_LICENSE secret is added
     secrets: inherit
 
   damayan-web:
     name: "DAMAYAN-Web Pipeline"
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.damayan-web == 'true' || needs.detect-changes.outputs.shared == 'true'
     uses: ./.github/workflows/front-end-workflow.yml
     with:
       system-dir: DAMAYAN-Web
       system-name: DAMAYAN-Web
+      enable-security-scan: false  # TODO: re-enable once GITLEAKS_LICENSE secret is added
     secrets: inherit
 
   hopecard-web:
     name: "HopeCard-Web Pipeline"
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.hopecard-web == 'true' || needs.detect-changes.outputs.shared == 'true'
     uses: ./.github/workflows/front-end-workflow.yml
     with:
       system-dir: HopeCard-Web
       system-name: HopeCard-Web
+      enable-security-scan: false  # TODO: re-enable once GITLEAKS_LICENSE secret is added
     secrets: inherit
+
+  # ╔══════════════════════════════════════════════════════════════╗
+  # ║  STAGE 1.5 — SonarCloud (single monorepo scan)             ║
+  # ║  Runs ONCE after all sub-project tests pass                 ║
+  # ║  Collects all coverage reports into one analysis            ║
+  # ╚══════════════════════════════════════════════════════════════╝
+  sonarcloud:
+    name: "SonarCloud — Monorepo Analysis"
+    needs: [bayanihub-web, damayan-web, hopecard-web]
+    if: >-
+      always() &&
+      needs.bayanihub-web.result != 'cancelled' &&
+      needs.damayan-web.result != 'cancelled' &&
+      needs.hopecard-web.result != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download BayaniHub-Web Coverage
+        if: needs.bayanihub-web.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: BayaniHub-Web-coverage
+          path: BayaniHub-Web/coverage
+        continue-on-error: true
+
+      - name: Download DAMAYAN-Web Coverage
+        if: needs.damayan-web.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: DAMAYAN-Web-coverage
+          path: DAMAYAN-Web/coverage
+        continue-on-error: true
+
+      - name: Download HopeCard-Web Coverage
+        if: needs.hopecard-web.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: HopeCard-Web-coverage
+          path: HopeCard-Web/coverage
+        continue-on-error: true
+
+      - name: Run SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          args: >
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
 
   # ╔══════════════════════════════════════════════════════════════╗
   # ║  STAGE 2 — Deploy to UAT (uat branch only, PARALLEL)       ║
@@ -69,7 +171,10 @@ jobs:
   deploy-uat-bayanihub:
     name: "UAT — BayaniHub-Web"
     needs: [bayanihub-web]
-    if: github.ref == 'refs/heads/uat' && github.event_name == 'push'
+    if: |
+      always() &&
+      github.ref == 'refs/heads/uat' && github.event_name == 'push' &&
+      needs.bayanihub-web.result == 'success'
     uses: ./.github/workflows/deploy-staging.yml
     with:
       system-dir: BayaniHub-Web
@@ -82,7 +187,10 @@ jobs:
   deploy-uat-damayan:
     name: "UAT — DAMAYAN-Web"
     needs: [damayan-web]
-    if: github.ref == 'refs/heads/uat' && github.event_name == 'push'
+    if: |
+      always() &&
+      github.ref == 'refs/heads/uat' && github.event_name == 'push' &&
+      needs.damayan-web.result == 'success'
     uses: ./.github/workflows/deploy-staging.yml
     with:
       system-dir: DAMAYAN-Web
@@ -95,7 +203,10 @@ jobs:
   deploy-uat-hopecard:
     name: "UAT — HopeCard-Web"
     needs: [hopecard-web]
-    if: github.ref == 'refs/heads/uat' && github.event_name == 'push'
+    if: |
+      always() &&
+      github.ref == 'refs/heads/uat' && github.event_name == 'push' &&
+      needs.hopecard-web.result == 'success'
     uses: ./.github/workflows/deploy-staging.yml
     with:
       system-dir: HopeCard-Web
@@ -106,12 +217,33 @@ jobs:
     secrets: inherit
 
   # ╔══════════════════════════════════════════════════════════════╗
-  # ║  STAGE 3 — Deploy to Prod (prod branch only, PARALLEL)     ║
+  # ║  STAGE 3 — Deploy to Prod (main branch only)               ║
+  # ║  UAT was already verified on the uat branch.                ║
+  # ║  Step 1: Production gate (approval + checklist)             ║
+  # ║  Step 2: Deploy to Prod                                     ║
   # ╚══════════════════════════════════════════════════════════════╝
+
+  # ── Step 3A: Production Gate ───────────────────────────────────
+  production-gate:
+    name: "Production Readiness Gate"
+    needs: [bayanihub-web, damayan-web, hopecard-web]
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' && github.event_name == 'push' &&
+      (needs.bayanihub-web.result == 'success' || needs.bayanihub-web.result == 'skipped') &&
+      (needs.damayan-web.result == 'success' || needs.damayan-web.result == 'skipped') &&
+      (needs.hopecard-web.result == 'success' || needs.hopecard-web.result == 'skipped')
+    uses: ./.github/workflows/production-gate.yml
+    with:
+      system-dir: Tribe3-Frontend
+      app-type: web
+    secrets: inherit
+
+  # ── Step 3B: Deploy to Prod (after gate approval) ─────────────
   deploy-prod-bayanihub:
     name: "Prod — BayaniHub-Web"
-    needs: [bayanihub-web]
-    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+    needs: [production-gate]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/deploy-staging.yml
     with:
       system-dir: BayaniHub-Web
@@ -123,8 +255,8 @@ jobs:
 
   deploy-prod-damayan:
     name: "Prod — DAMAYAN-Web"
-    needs: [damayan-web]
-    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+    needs: [production-gate]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/deploy-staging.yml
     with:
       system-dir: DAMAYAN-Web
@@ -136,8 +268,8 @@ jobs:
 
   deploy-prod-hopecard:
     name: "Prod — HopeCard-Web"
-    needs: [hopecard-web]
-    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+    needs: [production-gate]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/deploy-staging.yml
     with:
       system-dir: HopeCard-Web
@@ -145,19 +277,6 @@ jobs:
       app-type: web
       artifact-name: HopeCard-Web-web-build
       deploy-environment: prod
-    secrets: inherit
-
-  # ╔══════════════════════════════════════════════════════════════╗
-  # ║  STAGE 4 — Production Gate (prod branch only)              ║
-  # ╚══════════════════════════════════════════════════════════════╝
-  production-gate:
-    name: "Production Readiness Gate"
-    needs: [deploy-prod-bayanihub, deploy-prod-damayan, deploy-prod-hopecard]
-    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
-    uses: ./.github/workflows/production-gate.yml
-    with:
-      system-dir: Tribe3-Frontend
-      app-type: web
     secrets: inherit
 
   # ╔══════════════════════════════════════════════════════════════╗
