@@ -2,17 +2,21 @@
 # ║  MASTER PIPELINE ORCHESTRATOR                                  ║
 # ║  Coordinates all tribe system pipelines in parallel            ║
 # ║                                                                ║
-# ║  Branch Strategy:                                              ║
+# ║  Branch Strategy (feature-based):                              ║
+# ║  ┌──────────────┐                                              ║
+# ║  │  feature/*    │  Developer works on feature branch          ║
+# ║  └────┬─────────┘                                              ║
+# ║       ▼  PR                                                    ║
 # ║  ┌──────────┐                                                  ║
 # ║  │  test     │  CI only (tests + lint + security + sonar)      ║
 # ║  └────┬─────┘                                                  ║
-# ║       ▼                                                        ║
+# ║       ▼  PR                                                    ║
 # ║  ┌──────────┐                                                  ║
 # ║  │  uat      │  CI + Deploy to UAT environment                 ║
 # ║  └────┬─────┘                                                  ║
-# ║       ▼                                                        ║
+# ║       ▼  PR                                                    ║
 # ║  ┌──────────┐                                                  ║
-# ║  │  prod     │  CI + Production Gate + Deploy to Prod        ║
+# ║  │  main     │  CI + Production Gate + Deploy to Prod          ║
 # ║  └──────────┘                                                  ║
 # ║                                                                ║
 # ║  All 3 systems run in PARALLEL at every stage.                 ║
@@ -21,9 +25,9 @@ name: "Master Pipeline Orchestrator"
 
 on:
   push:
-    branches: [test, uat, prod]
+    branches: [test, uat, main]
   pull_request:
-    branches: [test, uat, prod]
+    branches: [test, uat, main]
 
 permissions:
   contents: read
@@ -148,10 +152,11 @@ jobs:
         continue-on-error: true
 
       - name: Run SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v5
+        uses: SonarSource/sonarqube-scan-action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
         with:
           args: >
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
@@ -209,7 +214,7 @@ jobs:
     secrets: inherit
 
   # ╔══════════════════════════════════════════════════════════════╗
-  # ║  STAGE 3 — Deploy to Prod (prod branch only)               ║
+  # ║  STAGE 3 — Deploy to Prod (main branch only)               ║
   # ║  UAT was already verified on the uat branch.                ║
   # ║  Step 1: Production gate (approval + checklist)             ║
   # ║  Step 2: Deploy to Prod                                     ║
@@ -221,7 +226,7 @@ jobs:
     needs: [bayanihub-web, damayan-web, hopecard-web]
     if: >-
       always() &&
-      github.ref == 'refs/heads/prod' && github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' && github.event_name == 'push' &&
       (needs.bayanihub-web.result == 'success' || needs.bayanihub-web.result == 'skipped') &&
       (needs.damayan-web.result == 'success' || needs.damayan-web.result == 'skipped') &&
       (needs.hopecard-web.result == 'success' || needs.hopecard-web.result == 'skipped')
@@ -235,7 +240,7 @@ jobs:
   deploy-prod-bayanihub:
     name: "Prod — BayaniHub-Web"
     needs: [production-gate]
-    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/deploy-staging.yml
     with:
       system-dir: BayaniHub-Web
@@ -248,7 +253,7 @@ jobs:
   deploy-prod-damayan:
     name: "Prod — DAMAYAN-Web"
     needs: [production-gate]
-    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/deploy-staging.yml
     with:
       system-dir: DAMAYAN-Web
@@ -261,7 +266,7 @@ jobs:
   deploy-prod-hopecard:
     name: "Prod — HopeCard-Web"
     needs: [production-gate]
-    if: github.ref == 'refs/heads/prod' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/deploy-staging.yml
     with:
       system-dir: HopeCard-Web
