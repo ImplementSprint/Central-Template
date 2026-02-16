@@ -221,6 +221,8 @@ Use `mobile-workflow.yml` in your `master-pipeline.yml`.
 
 ## 6. Frontend Repo Setup
 
+> All frontend projects use **React + Vite**. Every React project **must** have an `index.html` at its root — this is the Vite entry point that loads `src/main.jsx`.
+
 Each frontend system (at root or subdirectory) needs these files:
 
 ### Required File Structure
@@ -746,7 +748,7 @@ jobs:
           name: REPLACE_WITH_SYSTEM_NAME-coverage
           path: coverage
         continue-on-error: true
-      - uses: SonarSource/sonarqube-scan-action@v5.0.0
+      - uses: SonarSource/sonarqube-scan-action@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -858,7 +860,7 @@ jobs:
           name: REPLACE_WITH_SYSTEM_NAME-coverage
           path: coverage
         continue-on-error: true
-      - uses: SonarSource/sonarqube-scan-action@v5.0.0
+      - uses: SonarSource/sonarqube-scan-action@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -970,7 +972,7 @@ jobs:
           name: REPLACE_WITH_SYSTEM_NAME-coverage
           path: coverage
         continue-on-error: true
-      - uses: SonarSource/sonarqube-scan-action@v5.0.0
+      - uses: SonarSource/sonarqube-scan-action@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -1151,7 +1153,7 @@ jobs:
           name: SYSTEM_C-coverage
           path: SYSTEM_C/coverage
         continue-on-error: true
-      - uses: SonarSource/sonarqube-scan-action@v5.0.0
+      - uses: SonarSource/sonarqube-scan-action@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
