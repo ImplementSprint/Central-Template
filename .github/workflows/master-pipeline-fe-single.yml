@@ -102,8 +102,18 @@ jobs:
       - name: Create and Push Version Tag
         id: version
         run: |
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          TAG="test-v$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+          PREFIX="test-v"
+          LATEST=$(git tag -l "${PREFIX}[0-9]*.[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -n 1)
+
+          if [ -z "${LATEST}" ]; then
+            NEXT_VERSION="1.0.0.0"
+          else
+            RAW_VERSION="${LATEST#${PREFIX}}"
+            IFS='.' read -r MAJOR MINOR PATCH BUILD <<< "${RAW_VERSION}"
+            NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}.$((BUILD + 1))"
+          fi
+
+          TAG="${PREFIX}${NEXT_VERSION}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -197,8 +207,17 @@ jobs:
       - name: Create and Push Release Tag
         id: version
         run: |
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          TAG="main-v$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+          TEST_PREFIX="test-v"
+          MAIN_PREFIX="main-v"
+
+          LATEST_TEST=$(git tag -l "${TEST_PREFIX}[0-9]*.[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -n 1)
+          if [ -z "${LATEST_TEST}" ]; then
+            echo "❌ No test version tag found. main release tag requires a prior test tag."
+            exit 1
+          fi
+
+          VERSION_FROM_TEST="${LATEST_TEST#${TEST_PREFIX}}"
+          TAG="${MAIN_PREFIX}${VERSION_FROM_TEST}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
