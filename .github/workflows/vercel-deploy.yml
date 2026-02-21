@@ -69,7 +69,7 @@ jobs:
       - name: Pull and Build with Vercel (adaptive context)
         id: prepare
         run: |
-          set -euo pipefail
+          set -uo pipefail
 
           run_pull_build() {
             local dir="$1"
@@ -78,11 +78,23 @@ jobs:
             pushd "$dir" > /dev/null
 
             vercel pull --yes --environment=${{ inputs.environment }} --token=${{ secrets.VERCEL_TOKEN }}
+            local pull_status=$?
+            if [ $pull_status -ne 0 ]; then
+              echo "❌ vercel pull failed in $dir"
+              popd > /dev/null
+              return 1
+            fi
 
             if [ "${{ inputs.environment }}" = "production" ]; then
               vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
             else
               vercel build --token=${{ secrets.VERCEL_TOKEN }}
+            fi
+            local build_status=$?
+            if [ $build_status -ne 0 ]; then
+              echo "❌ vercel build failed in $dir"
+              popd > /dev/null
+              return 1
             fi
 
             if [ ! -d ".vercel/output" ]; then
