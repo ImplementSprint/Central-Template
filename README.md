@@ -333,6 +333,8 @@ Make sure `index.html` exists at the sub-project root (not inside `src/`).
 - **Check the branch being deployed.** If Vercel is building from `main` but your code is only on a feature branch, the build will produce an empty app.
 - Verify `package.json` exists in the sub-project directory used by the workflow
 - Check the Vercel project **Root Directory** is `.` for that linked sub-project context (do not set `BayaniHub-Web` when the workflow already runs in `BayaniHub-Web`)
+- Confirm `VERCEL_PROJECT_ID_*` secret maps to the same sub-project being deployed
+- In failing runs, verify `.vercel/output` is generated after `vercel build` (required for `vercel deploy --prebuilt`)
 
 ### Tests fail with "Cannot find module"
 

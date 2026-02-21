@@ -64,7 +64,7 @@ jobs:
         working-directory: ./${{ inputs.working-directory }}
 
       - name: Install Vercel CLI
-        run: npm install -g vercel@latest
+        run: npm install -g vercel@50.22.1
 
       - name: Pull Vercel Environment
         run: |
@@ -86,6 +86,17 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Validate Vercel Build Output
+        run: |
+          if [ ! -d ".vercel/output" ]; then
+            echo "❌ .vercel/output not found after vercel build in ./${{ inputs.working-directory }}"
+            echo "This usually means Vercel Root Directory or project mapping is incorrect."
+            echo "Ensure this GitHub secret VERCEL_PROJECT_ID points to the same sub-project and Root Directory is set correctly in Vercel."
+            exit 1
+          fi
+          echo "✅ Found .vercel/output"
+        working-directory: ./${{ inputs.working-directory }}
 
       - name: Deploy to Vercel
         id: deploy
