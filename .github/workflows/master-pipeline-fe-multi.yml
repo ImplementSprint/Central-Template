@@ -41,32 +41,13 @@ jobs:
         id: resolve
         env:
           SYSTEMS_JSON_VAR: ${{ vars.FE_MULTI_SYSTEMS_JSON }}
-          APP1_NAME: ${{ vars.FE_MULTI_APP1_NAME != '' && vars.FE_MULTI_APP1_NAME || 'BayaniHub-Web' }}
-          APP2_NAME: ${{ vars.FE_MULTI_APP2_NAME != '' && vars.FE_MULTI_APP2_NAME || 'DAMAYAN-Web' }}
-          APP3_NAME: ${{ vars.FE_MULTI_APP3_NAME != '' && vars.FE_MULTI_APP3_NAME || 'HopeCard-Web' }}
-          APP1_DIR: ${{ vars.FE_MULTI_APP1_DIR != '' && vars.FE_MULTI_APP1_DIR || 'BayaniHub-Web' }}
-          APP2_DIR: ${{ vars.FE_MULTI_APP2_DIR != '' && vars.FE_MULTI_APP2_DIR || 'DAMAYAN-Web' }}
-          APP3_DIR: ${{ vars.FE_MULTI_APP3_DIR != '' && vars.FE_MULTI_APP3_DIR || 'HopeCard-Web' }}
-          APP1_IMAGE: ${{ vars.FE_MULTI_APP1_IMAGE != '' && vars.FE_MULTI_APP1_IMAGE || 'bayanihub-web' }}
-          APP2_IMAGE: ${{ vars.FE_MULTI_APP2_IMAGE != '' && vars.FE_MULTI_APP2_IMAGE || 'damayan-web' }}
-          APP3_IMAGE: ${{ vars.FE_MULTI_APP3_IMAGE != '' && vars.FE_MULTI_APP3_IMAGE || 'hopecard-web' }}
-          APP1_VERCEL_SECRET: ${{ vars.FE_MULTI_APP1_VERCEL_PROJECT_SECRET }}
-          APP2_VERCEL_SECRET: ${{ vars.FE_MULTI_APP2_VERCEL_PROJECT_SECRET }}
-          APP3_VERCEL_SECRET: ${{ vars.FE_MULTI_APP3_VERCEL_PROJECT_SECRET }}
         run: |
-          if [ -n "${SYSTEMS_JSON_VAR}" ]; then
-            SYSTEMS_JSON="${SYSTEMS_JSON_VAR}"
-          else
-            SYSTEMS_JSON=$(jq -nc \
-              --arg n1 "${APP1_NAME}" --arg d1 "${APP1_DIR}" --arg i1 "${APP1_IMAGE}" --arg v1 "${APP1_VERCEL_SECRET}" \
-              --arg n2 "${APP2_NAME}" --arg d2 "${APP2_DIR}" --arg i2 "${APP2_IMAGE}" --arg v2 "${APP2_VERCEL_SECRET}" \
-              --arg n3 "${APP3_NAME}" --arg d3 "${APP3_DIR}" --arg i3 "${APP3_IMAGE}" --arg v3 "${APP3_VERCEL_SECRET}" \
-              '[
-                {name:$n1,dir:$d1,image:$i1,vercel_project_secret:$v1},
-                {name:$n2,dir:$d2,image:$i2,vercel_project_secret:$v2},
-                {name:$n3,dir:$d3,image:$i3,vercel_project_secret:$v3}
-              ] | map(select(.name != ""))')
+          if [ -z "${SYSTEMS_JSON_VAR}" ]; then
+            echo "❌ Missing required repository variable FE_MULTI_SYSTEMS_JSON."
+            exit 1
           fi
+
+          SYSTEMS_JSON="${SYSTEMS_JSON_VAR}"
 
           echo "${SYSTEMS_JSON}" | jq -e . >/dev/null
           echo "${SYSTEMS_JSON}" | jq -e 'type == "array" and length > 0' >/dev/null
@@ -152,6 +133,7 @@ jobs:
       system-dir: ${{ matrix.system.dir }}
       system-name: ${{ matrix.system.name }}
       enable-security-scan: true
+      enable-sonar: false
     secrets: inherit
 
   sonarcloud:
@@ -164,6 +146,32 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Validate SonarCloud project access
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+        run: |
+          if [ -z "${SONAR_TOKEN}" ] || [ -z "${SONAR_ORGANIZATION}" ] || [ -z "${SONAR_PROJECT_KEY}" ]; then
+            echo "❌ SonarCloud preflight failed: one or more required secrets are empty."
+            exit 1
+          fi
+
+          RESPONSE=$(curl -sS -w "\n%{http_code}" -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/projects/search?organization=${SONAR_ORGANIZATION}&projects=${SONAR_PROJECT_KEY}")
+          HTTP_CODE=$(echo "${RESPONSE}" | tail -n 1)
+          BODY=$(echo "${RESPONSE}" | sed '$d')
+          TOTAL=$(echo "${BODY}" | jq -r '.paging.total // 0')
+
+          echo "🔎 Sonar preflight: org='${SONAR_ORGANIZATION}', project='${SONAR_PROJECT_KEY}', http=${HTTP_CODE}, total=${TOTAL}"
+
+          if [ "${HTTP_CODE}" -ne 200 ] || [ "${TOTAL}" -lt 1 ]; then
+            echo "❌ SonarCloud preflight failed: project not found or token has no access."
+            echo "Check SONAR_ORGANIZATION, SONAR_PROJECT_KEY, and SONAR_TOKEN permissions for this repository."
+            exit 1
+          fi
+
+          echo "✅ SonarCloud preflight passed."
 
       - name: Run SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v6
@@ -178,13 +186,14 @@ jobs:
 
   version-test:
     name: "Version Tag — TEST"
-    needs: [frontend, active-systems]
+    needs: [frontend, active-systems, sonarcloud]
     if: >-
       always() &&
       github.ref == 'refs/heads/test' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true') &&
       fromJson(needs.active-systems.outputs.active_count) > 0 &&
+      (needs.sonarcloud.result == 'success' || needs.sonarcloud.result == 'skipped') &&
       (needs.frontend.result == 'success' || needs.frontend.result == 'skipped')
     uses: ./.github/workflows/versioning.yml
     with:
@@ -192,13 +201,14 @@ jobs:
 
   deploy-test:
     name: "TEST — ${{ matrix.system.name }}"
-    needs: [frontend, active-systems]
+    needs: [frontend, active-systems, sonarcloud]
     if: >-
       always() &&
       github.ref == 'refs/heads/test' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (github.event_name != 'workflow_dispatch' || (github.event.inputs.run_deploy == 'true' && github.event.inputs.dry_run != 'true')) &&
       fromJson(needs.active-systems.outputs.active_count) > 0 &&
+      (needs.sonarcloud.result == 'success' || needs.sonarcloud.result == 'skipped') &&
       (needs.frontend.result == 'success' || needs.frontend.result == 'skipped')
     strategy:
       fail-fast: false
@@ -215,13 +225,14 @@ jobs:
 
   deploy-uat:
     name: "UAT — ${{ matrix.system.name }}"
-    needs: [frontend, active-systems]
+    needs: [frontend, active-systems, sonarcloud]
     if: >-
       always() &&
       github.ref == 'refs/heads/uat' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (github.event_name != 'workflow_dispatch' || (github.event.inputs.run_deploy == 'true' && github.event.inputs.dry_run != 'true')) &&
       fromJson(needs.active-systems.outputs.active_count) > 0 &&
+      (needs.sonarcloud.result == 'success' || needs.sonarcloud.result == 'skipped') &&
       (needs.frontend.result == 'success' || needs.frontend.result == 'skipped')
     strategy:
       fail-fast: false
@@ -238,13 +249,14 @@ jobs:
 
   production-gate:
     name: "Production Readiness Gate"
-    needs: [frontend, active-systems]
+    needs: [frontend, active-systems, sonarcloud]
     if: >-
       always() &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (github.event_name != 'workflow_dispatch' || (github.event.inputs.run_deploy == 'true' && github.event.inputs.dry_run != 'true')) &&
       fromJson(needs.active-systems.outputs.active_count) > 0 &&
+      (needs.sonarcloud.result == 'success' || needs.sonarcloud.result == 'skipped') &&
       (needs.frontend.result == 'success' || needs.frontend.result == 'skipped')
     uses: ./.github/workflows/production-gate.yml
     with:
@@ -329,7 +341,7 @@ jobs:
       version-tag: ${{ needs.version-test.outputs.version_tag }}
       dry-run: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
     secrets:
-      PR_TOKEN: ${{ secrets[vars.FE_MULTI_PR_TOKEN_SECRET != '' && vars.FE_MULTI_PR_TOKEN_SECRET || 'GH_PR_TOKEN'] != '' && secrets[vars.FE_MULTI_PR_TOKEN_SECRET != '' && vars.FE_MULTI_PR_TOKEN_SECRET || 'GH_PR_TOKEN'] || (secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GHPR_TOKEN) }}
+      PR_TOKEN: ${{ secrets.GH_PR_TOKEN }}
 
   create-pr-to-main:
     name: "Create PR → Main"
@@ -352,7 +364,7 @@ jobs:
       system1-result: ${{ needs.frontend.result }}
       dry-run: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
     secrets:
-      PR_TOKEN: ${{ secrets[vars.FE_MULTI_PR_TOKEN_SECRET != '' && vars.FE_MULTI_PR_TOKEN_SECRET || 'GH_PR_TOKEN'] != '' && secrets[vars.FE_MULTI_PR_TOKEN_SECRET != '' && vars.FE_MULTI_PR_TOKEN_SECRET || 'GH_PR_TOKEN'] || (secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GHPR_TOKEN) }}
+      PR_TOKEN: ${{ secrets.GH_PR_TOKEN }}
 
   pipeline-summary:
     name: "Pipeline Summary"
@@ -365,9 +377,71 @@ jobs:
       results-json: '{}'
       overall-result: ${{ needs.frontend.result }}
 
+  auto-revert-on-failure:
+    name: "Auto Revert on Failure"
+    needs:
+      [
+        systems-config,
+        active-systems,
+        frontend,
+        sonarcloud,
+        version-test,
+        deploy-test,
+        deploy-uat,
+        production-gate,
+        deploy-prod,
+        version-main-release,
+        docker-main,
+        create-pr-to-uat,
+        create-pr-to-main,
+        pipeline-summary,
+      ]
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      contains(needs.*.result, 'failure') &&
+      !contains(github.event.head_commit.message, '[skip-revert]') &&
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, '[ci skip]') &&
+      !startsWith(github.event.head_commit.message, 'Revert "')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Create rollback commit
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin "${BRANCH_NAME}" --depth=50
+          git checkout -B "${BRANCH_NAME}" "origin/${BRANCH_NAME}"
+
+          export GIT_EDITOR=:
+
+          if git revert --no-edit "${GITHUB_SHA}"; then
+            git commit --amend -m "$(git log -1 --pretty=%B) [skip ci] [skip-revert]"
+            echo "✅ Created revert commit from ${GITHUB_SHA}."
+          elif git revert -m 1 --no-edit "${GITHUB_SHA}"; then
+            git commit --amend -m "$(git log -1 --pretty=%B) [skip ci] [skip-revert]"
+            echo "✅ Created merge-revert commit from ${GITHUB_SHA}."
+          else
+            git revert --abort || true
+            SHORT_SHA="${GITHUB_SHA:0:7}"
+            git commit --allow-empty -m "ci(auto-revert): manual rollback required for ${SHORT_SHA} [skip ci] [skip-revert]"
+            echo "⚠️ Automatic revert conflicted; created marker commit for manual rollback."
+          fi
+
+          git push origin "HEAD:${BRANCH_NAME}"
+
   notify-pipeline:
     name: "Notify Pipeline Status"
-    needs: [pipeline-summary, frontend, active-systems]
+    needs: [pipeline-summary, frontend, active-systems, auto-revert-on-failure]
     if: always()
     uses: ./.github/workflows/notifications.yml
     with:

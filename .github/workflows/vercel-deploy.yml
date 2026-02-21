@@ -126,10 +126,19 @@ jobs:
         id: deploy
         run: |
           if [ "${{ inputs.environment }}" = "production" ]; then
-            URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+            DEPLOY_OUTPUT=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
           else
-            URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+            DEPLOY_OUTPUT=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
           fi
+
+          URL=$(echo "${DEPLOY_OUTPUT}" | grep -Eo 'https://[^[:space:]]+' | tail -n 1 | tr -d '\r')
+
+          if [ -z "${URL}" ]; then
+            echo "❌ Failed to extract deployment URL from Vercel output."
+            echo "${DEPLOY_OUTPUT}"
+            exit 1
+          fi
+
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "🚀 Deployed to: $URL"
         working-directory: ${{ steps.prepare.outputs.deploy_dir }}

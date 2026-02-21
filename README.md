@@ -214,13 +214,24 @@ Required repository secrets:
 - `VERCEL_ORG_ID`
 - Secret referenced by `FE_SINGLE_VERCEL_PROJECT_SECRET` (for example `VERCEL_PROJECT_ID_FE_SINGLE`)
 
-Recommended repository variables:
+Preferred repository variable:
 
-- `FE_SINGLE_SYSTEM_NAME` (default: `Frontend-Root`)
-- `FE_SINGLE_WORKING_DIR` (default: `.`)
-- `FE_SINGLE_IMAGE_NAME` (default: `fe-single-web`)
-- `FE_SINGLE_VERCEL_PROJECT_SECRET` (required)
-- `FE_SINGLE_PR_TOKEN_SECRET` (default: `GH_PR_TOKEN`)
+- `FE_SINGLE_SYSTEM_JSON` (object or one-item array)
+
+Example object format:
+
+```json
+{
+   "name": "Frontend-Root",
+   "dir": ".",
+   "image": "fe-single-web",
+   "vercel_project_secret": "VERCEL_PROJECT_ID_FE_SINGLE"
+}
+```
+
+PR token for promotion PRs uses `GH_PR_TOKEN` directly (org/repo secret) and does not need to be included in JSON.
+
+No PR token variable is required for FE Single.
 
 Optional notification secrets:
 
@@ -264,10 +275,7 @@ Required shared secrets:
 - `VERCEL_ORG_ID`
 - Per-app Vercel project ID secrets referenced by each system entry's `vercel_project_secret`
 
-PR token resolution for FE Multi:
-
-- Primary: secret named by `FE_MULTI_PR_TOKEN_SECRET` (default variable value: `GH_PR_TOKEN`)
-- Fallbacks: `GH_PR_TOKEN`, then `GHPR_TOKEN`
+PR token for FE Multi promotions also uses `GH_PR_TOKEN` directly (org/repo secret).
 
 ### Manual Operations (`workflow_dispatch`)
 
@@ -371,6 +379,12 @@ All secrets are configured in **GitHub → Repo Settings → Secrets and variabl
 | `SONAR_TOKEN` | SonarCloud authentication token | [sonarcloud.io/account/security](https://sonarcloud.io/account/security) |
 | `SONAR_ORGANIZATION` | SonarCloud organization key | SonarCloud → Organization → Settings |
 | `SONAR_PROJECT_KEY` | SonarCloud project key | SonarCloud → Project → Information |
+
+Scope policy used in workflows:
+
+- `SONAR_PROJECT_KEY`: repository secret
+- `SONAR_ORGANIZATION`: organization secret (shared to this repository)
+- `SONAR_TOKEN`: organization secret (shared to this repository)
 
 ### Other Secrets
 
