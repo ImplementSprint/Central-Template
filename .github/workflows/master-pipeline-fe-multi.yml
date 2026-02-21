@@ -323,6 +323,7 @@ jobs:
       systems-json: ${{ needs.active-systems.outputs.active_systems_json }}
       deployment-urls-json: '{}'
       results-json: '{}'
+      system1-result: ${{ needs.frontend.result }}
       version-tag: ${{ needs.version-test.outputs.version_tag }}
       dry-run: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
     secrets:
@@ -346,6 +347,7 @@ jobs:
       systems-json: ${{ needs.active-systems.outputs.active_systems_json }}
       deployment-urls-json: '{}'
       results-json: '{}'
+      system1-result: ${{ needs.frontend.result }}
       dry-run: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true' }}
     secrets:
       PR_TOKEN: ${{ secrets[vars.FE_MULTI_PR_TOKEN_SECRET != '' && vars.FE_MULTI_PR_TOKEN_SECRET || 'GH_PR_TOKEN'] != '' && secrets[vars.FE_MULTI_PR_TOKEN_SECRET != '' && vars.FE_MULTI_PR_TOKEN_SECRET || 'GH_PR_TOKEN'] || (secrets.GH_PR_TOKEN != '' && secrets.GH_PR_TOKEN || secrets.GHPR_TOKEN) }}
