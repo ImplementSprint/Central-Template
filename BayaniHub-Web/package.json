@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "jest --coverage"
+    "test": "jest --coverage",
+    "test:e2e": "tsx tests/e2e/selenium-e2e.ts",
+    "test:e2e:firefox": "tsx tests/e2e/selenium-e2e.ts --browser=firefox"
   },
   "dependencies": {
     "next": "^15.0.0",
@@ -29,6 +31,8 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "jsdom": "^28.1.0",
+    "selenium-webdriver": "^4.28.1",
+    "tsx": "^4.20.5",
     "typescript": "^5.7.3"
   }
 }
