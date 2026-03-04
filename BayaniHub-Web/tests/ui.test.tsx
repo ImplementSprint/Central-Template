@@ -5,6 +5,7 @@ import Footer from '../src/components/Footer';
 import Home from '../src/pages/Home';
 import About from '../src/pages/About';
 import Programs from '../src/pages/Programs';
+import Volunteer from '../src/pages/Volunteer';
 import NotFound from '../src/pages/NotFound';
 import Page from '../src/app/page';
 import RootLayout, { metadata } from '../src/app/layout';
@@ -39,6 +40,7 @@ describe('BayaniHub-Web UI', () => {
     render(<Home />);
 
     expect(screen.getByRole('heading', { name: 'What We Offer' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Community Updates' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Community Board' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Service Requests' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Events' })).toBeInTheDocument();
@@ -60,6 +62,14 @@ describe('BayaniHub-Web UI', () => {
     expect(screen.getByRole('heading', { name: 'Community Programs' })).toBeInTheDocument();
     expect(screen.getByText(/volunteer drives, youth activities/i)).toBeInTheDocument();
     expect(screen.getByText(/ways to contribute to your local community/i)).toBeInTheDocument();
+  });
+
+  it('renders volunteer opportunities page content', () => {
+    render(<Volunteer />);
+
+    expect(screen.getByRole('heading', { name: 'Volunteer Opportunities' })).toBeInTheDocument();
+    expect(screen.getByText(/clean-up drives, tutoring sessions/i)).toBeInTheDocument();
+    expect(screen.getByText(/track your contributions in one place/i)).toBeInTheDocument();
   });
 
   it('renders not found page message', () => {

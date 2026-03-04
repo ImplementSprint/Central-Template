@@ -44,6 +44,14 @@ function Home() {
         </div>
       </section>
 
+      <section className="updates" id="updates">
+        <h2 className="updates__title">Community Updates</h2>
+        <p className="updates__text">
+          Get weekly highlights on barangay projects, neighborhood concerns,
+          and volunteer achievements from your local area.
+        </p>
+      </section>
+
       {/* CTA Section */}
       <section className="cta-section" id="contact">
         <h2 className="cta-section__title">Ready to Join Your Community?</h2>

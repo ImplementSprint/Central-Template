@@ -60,6 +60,14 @@ function Home() {
         </div>
       </section>
 
+      <section className="response-workflow">
+        <h2>Response Workflow</h2>
+        <p>
+          Report, verify, mobilize, and deliver: DAMAYAN coordinates each step
+          with local responders and volunteers for faster community support.
+        </p>
+      </section>
+
       {/* CTA Section */}
       <section className="cta">
         <h2>Need Help? Report Now</h2>

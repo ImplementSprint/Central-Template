@@ -62,6 +62,14 @@ function Home() {
         </div>
       </section>
 
+      <section className="partner-network" id="partners">
+        <h2>Partner Network</h2>
+        <p>
+          HopeCard works with LGUs, NGOs, and funding partners to ensure aid
+          delivery remains coordinated, traceable, and timely.
+        </p>
+      </section>
+
       {/* CTA Section */}
       <section className="cta-section">
         <h2>Check Your Eligibility</h2>

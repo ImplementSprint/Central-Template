@@ -4,6 +4,7 @@ import Header from '../src/components/Header';
 import Footer from '../src/components/Footer';
 import Home from '../src/pages/Home';
 import About from '../src/pages/About';
+import Eligibility from '../src/pages/Eligibility';
 import NotFound from '../src/pages/NotFound';
 import Page from '../src/app/page';
 import RootLayout, { metadata } from '../src/app/layout';
@@ -39,6 +40,7 @@ describe('HopeCard-Web UI', () => {
     expect(screen.getByRole('heading', { name: 'Program Enrollment' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Digital Card' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Track Benefits' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Partner Network' })).toBeInTheDocument();
     expect(screen.getByText('10,000+')).toBeInTheDocument();
     expect(screen.getByText('100%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Check Your Eligibility' })).toBeInTheDocument();
@@ -52,6 +54,14 @@ describe('HopeCard-Web UI', () => {
     expect(screen.getByRole('heading', { name: 'Dignified Aid' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Transparency' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Accountability' })).toBeInTheDocument();
+  });
+
+  it('renders eligibility checker page content', () => {
+    render(<Eligibility />);
+
+    expect(screen.getByRole('heading', { name: 'Eligibility Checker' })).toBeInTheDocument();
+    expect(screen.getByText(/requirements for national and local aid programs/i)).toBeInTheDocument();
+    expect(screen.getByText(/verify qualifications before application/i)).toBeInTheDocument();
   });
 
   it('renders not found fallback with home link', () => {

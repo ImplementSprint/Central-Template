@@ -4,6 +4,7 @@ import Header from '../src/components/Header';
 import Footer from '../src/components/Footer';
 import Home from '../src/pages/Home';
 import About from '../src/pages/About';
+import Preparedness from '../src/pages/Preparedness';
 import NotFound from '../src/pages/NotFound';
 import Page from '../src/app/page';
 import RootLayout, { metadata } from '../src/app/layout';
@@ -39,6 +40,7 @@ describe('DAMAYAN-Web UI', () => {
     expect(screen.getByRole('heading', { name: 'Report Emergency' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Volunteer Hub' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Resource Center' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Response Workflow' })).toBeInTheDocument();
     expect(screen.getByText('500+')).toBeInTheDocument();
     expect(screen.getByText('24/7')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Report an Emergency' })).toBeInTheDocument();
@@ -51,6 +53,14 @@ describe('DAMAYAN-Web UI', () => {
     expect(screen.getByRole('heading', { name: 'Mutual Aid' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Bayanihan Spirit' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Disaster Preparedness' })).toBeInTheDocument();
+  });
+
+  it('renders preparedness guides page content', () => {
+    render(<Preparedness />);
+
+    expect(screen.getByRole('heading', { name: 'Preparedness Guides' })).toBeInTheDocument();
+    expect(screen.getByText(/emergency checklists, evacuation planning tools/i)).toBeInTheDocument();
+    expect(screen.getByText(/prepare before disasters strike/i)).toBeInTheDocument();
   });
 
   it('renders not found fallback with home link', () => {
