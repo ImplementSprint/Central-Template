@@ -27,7 +27,7 @@ export const options = {
   },
 };
 
-export default function () {
+function smoke() {
   for (const path of paths) {
     const response = http.get(`${baseUrl}${path}`, {
       tags: {
@@ -41,8 +41,9 @@ export default function () {
       [`${path} response time < ${maxDurationMs}ms`]: (result) => result.timings.duration < maxDurationMs,
     };
 
-    if (expectedText) {
-      checks[`${path} contains expected text`] = (result) => result.body && result.body.includes(expectedText);
+    if (expectedText?.length) {
+      checks[`${path} contains expected text`] = (result) =>
+        result.body?.includes(expectedText) ?? false;
     }
 
     check(response, checks);
@@ -50,3 +51,5 @@ export default function () {
 
   sleep(1);
 }
+
+export default smoke;

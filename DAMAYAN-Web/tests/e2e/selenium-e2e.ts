@@ -55,8 +55,10 @@ async function runSmoke() {
   }
 }
 
-runSmoke().catch((error) => {
+try {
+  await runSmoke();
+} catch (error) {
   console.error('❌ Selenium smoke failed');
   console.error(error);
   process.exit(1);
-});
+}

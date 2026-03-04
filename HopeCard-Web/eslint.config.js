@@ -50,6 +50,18 @@ export default [
   },
 
   {
+    files: ['tests/e2e/**/*.{js,ts}'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
+  {
     files: ['jest.config.js', 'jest.setup.js'],
     languageOptions: {
       globals: {
